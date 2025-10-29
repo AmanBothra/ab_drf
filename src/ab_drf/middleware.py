@@ -42,6 +42,11 @@ class HeadInfoMiddleware(object):
         response['X-Request-Id'] = request.id
         response['X-Version'] = '%s#%s' % (branch, commit_hash)
         response['X-Served-By'] = socket.gethostname()
-        response['Content-Length'] = len(response.content)
+        if (
+            hasattr(response, 'content')
+            and not getattr(response, 'streaming', False)
+            and response.get('Content-Length') is None
+        ):
+            response['Content-Length'] = len(response.content)
 
         return response
