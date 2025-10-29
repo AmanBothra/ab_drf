@@ -1,4 +1,3 @@
-from django.http import JsonResponse
 from rest_framework import renderers, status
 
 RESPONSE_MESSAGE = {
@@ -17,51 +16,83 @@ RESPONSE_MESSAGE = {
 
 class CustomRenderer(renderers.JSONRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        status_code = renderer_context['response'].status_code
+        renderer_context = renderer_context or {}
+        response = renderer_context.get('response')
+        status_code = getattr(response, 'status_code', None)
 
-        api_response_message = RESPONSE_MESSAGE.get(status_code, None)
-
-        if isinstance(data, dict):
-            api_response_message = data.pop('message', api_response_message)
-
-        if 'response_data' in data:
-            data = data.pop('response_data', None)
-            data.pop('response_message', None)
+        sanitized_payload = data.copy() if isinstance(data, dict) else data
+        message = self._extract_message(sanitized_payload, status_code)
+        content, additional_info = self._extract_content(sanitized_payload)
 
         if status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED, status.HTTP_204_NO_CONTENT]:
-            response = {
+            envelope = {
                 'success': True,
-                'message': api_response_message,
+                'message': message,
                 'status': status_code,
             }
-            if 'additional_info' in data:
-                response['additional_info'] = data.get('additional_info')
+            if additional_info is not None:
+                envelope['additional_info'] = additional_info
 
-            if data is not None:
-                if 'results' in data:
-                    response.update({
-                        'count': data['count'],
-                        'next': data['next'],
-                        'previous': data['previous'],
-                        'results': data['results']
+            if content is not None:
+                if isinstance(content, dict) and 'results' in content:
+                    envelope.update({
+                        'count': content.get('count'),
+                        'next': content.get('next'),
+                        'previous': content.get('previous'),
+                        'results': content.get('results')
                     })
                 else:
-                    response.update({'results': data})
+                    envelope.update({'results': content})
         else:
-            response = {
+            envelope = {
                 'success': False,
                 'error': {},
-                'message': api_response_message,
+                'message': message,
                 'status': status_code
             }
-            if 'detail' in data:
-                response['error']['non_field_errors'] = [data['detail']]
-            elif 'non_field_errors' in data:
-                response['error']['non_field_errors'] = data['non_field_errors']
-            else:
-                response['error'] = self.flatten_field_errors(data)
+            if isinstance(content, dict):
+                if 'detail' in content:
+                    envelope['error']['non_field_errors'] = [content['detail']]
+                elif 'non_field_errors' in content:
+                    envelope['error']['non_field_errors'] = content['non_field_errors']
+                else:
+                    envelope['error'] = self.flatten_field_errors(content)
+            elif content is not None:
+                if isinstance(content, list):
+                    envelope['error']['non_field_errors'] = content
+                else:
+                    envelope['error']['non_field_errors'] = [content]
 
-        return JsonResponse(data=response)
+        return super().render(envelope, accepted_media_type, renderer_context)
+
+    def _extract_message(self, payload, status_code):
+        default_message = RESPONSE_MESSAGE.get(status_code)
+        if not isinstance(payload, dict):
+            return default_message
+
+        message = payload.pop('message', None)
+        response_data = payload.get('response_data')
+        if message is None and isinstance(response_data, dict):
+            message = response_data.get('response_message')
+
+        return message or default_message
+
+    def _extract_content(self, payload):
+        if not isinstance(payload, dict):
+            return payload, None
+
+        response_data = payload.pop('response_data', None)
+        content_source = response_data if response_data is not None else payload
+
+        additional_info = None
+        if isinstance(content_source, dict):
+            additional_info = content_source.pop('additional_info', None)
+            content_source.pop('response_message', None)
+
+        if additional_info is None and isinstance(payload, dict):
+            additional_info = payload.pop('additional_info', None)
+
+        return content_source, additional_info
 
     def flatten_field_errors(self, data):
         field_errors = {}
