@@ -1,10 +1,3 @@
-"""Application specific error helpers.
-
-This module exposes a light wrapper around DRF's :class:`~rest_framework.exceptions.APIException`
-that records an ``error_code`` attribute alongside the HTTP status code.  It also defines
-centralised error message tuples that can be unpacked directly into :class:`APIException`.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Optional, Tuple
@@ -47,3 +40,4 @@ class APIException(DRFAPIException):
 
 
 __all__ = ("APIException", "ErrorMessage")
+
