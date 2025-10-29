@@ -23,7 +23,7 @@ from django.contrib.admin.utils import NestedObjects
 from django.utils.html import format_html
 from django.utils.text import capfirst
 from django.urls import reverse
-from django.utils.encoding import force_text
+from django.utils.encoding import force_str
 from django.urls.exceptions import NoReverseMatch
 
 from src.ab_drf.errors import ErrorMessage
@@ -147,7 +147,7 @@ def get_deleted_objects(objs):
         except NoReverseMatch:
             pass
 
-        no_edit_link = "%s: %s" % (capfirst(opts.verbose_name), force_text(obj))
+        no_edit_link = "%s: %s" % (capfirst(opts.verbose_name), force_str(obj))
         return no_edit_link
 
     to_delete = collector.nested(format_callback)
