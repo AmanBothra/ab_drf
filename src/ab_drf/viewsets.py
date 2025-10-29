@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, status, viewsets
+from rest_framework.response import Response
 from django.contrib.contenttypes.models import ContentType
 
 from . helpers import get_deleted_objects
@@ -43,20 +44,31 @@ class MyModelViewSet(
 ):
     """Custom API response format."""
 
-    def destroy(self, request, model, pk):
-
-        obj = model.objects.get(pk=pk)
-        deleted_objects, model_count, protected = get_deleted_objects([obj])
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        deleted_objects, model_count, protected = get_deleted_objects([instance])
 
         length_deleted_obj = 0
         for models, obj in model_count.items():
             length_deleted_obj += obj
-        if length_deleted_obj > int(100):
-            content_type = ContentType.objects.get_for_model(model)
-            delete_objects.delay(pk, content_type.id)
-            return True
 
-        return False
+        if length_deleted_obj > int(100):
+            queryset = None
+            try:
+                queryset = self.get_queryset()
+            except AssertionError:
+                # `get_queryset` can raise an assertion error if `queryset` is not set
+                # and is expected to be provided by subclasses. Fallback to the
+                # instance's model in that case.
+                pass
+            model = getattr(queryset, "model", instance.__class__)
+
+            content_type = ContentType.objects.get_for_model(model)
+            delete_objects.delay(instance.pk, content_type.id)
+            return Response(status=status.HTTP_202_ACCEPTED)
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 
