@@ -4,7 +4,7 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
 from django.contrib.contenttypes.models import ContentType
 
-from . helpers import get_deleted_objects
+from .helpers import get_deleted_objects
 from .tasks import delete_objects
 
 class MyGenericViewSet(viewsets.GenericViewSet):
