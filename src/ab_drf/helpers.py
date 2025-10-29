@@ -26,9 +26,7 @@ from django.urls import reverse
 from django.utils.encoding import force_text
 from django.urls.exceptions import NoReverseMatch
 
-from src.ab_drf.errors import ErrorMessage
-
-from . import errors as err
+from .errors import APIException, ErrorMessage
 
 L = logging.getLogger('app.' + __name__)
 
@@ -64,7 +62,7 @@ def custom_exception_handler(exc, context):
     # Response is none, meaning builtin error handler failed to generate response and it needs to
     #  be converted to json response
     if response is None:
-        return custom_exception_handler(err.APIException(*ErrorMessage.UNEXPECTED), context)
+        return custom_exception_handler(APIException(*ErrorMessage.UNEXPECTED), context)
 
     # Passing context to help the renderer to identify if response is error or normal data
     if isinstance(response.data, list):
